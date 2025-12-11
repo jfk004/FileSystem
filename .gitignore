@@ -53,3 +53,16 @@ dkms.conf
 
 # debug information files
 *.dwo
+
+cat >> .gitignore << 'EOF'
+mkfs_qfs
+read_file
+list_information
+delete_file
+recover_files
+*.o
+EOF
+
+git add .gitignore
+git commit -m "Ignore build artifacts"
+git push
