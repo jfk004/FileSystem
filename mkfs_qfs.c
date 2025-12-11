@@ -1,4 +1,6 @@
 /*
+ * Authors: Fahim Kalange
+ * Date: Wednesday December 10th 2025
 **Program to make a filesystem on a blank file using the qfs parameters
 **
 ** Usage: mkfs_qfs <disk image file> [<label>]
@@ -21,12 +23,19 @@
 #include <string.h>
 #include "qfs.h"
 
+#define MAX_DIR_ENTRIES 255
+#define SIZE_30MB (30L * 1024L * 1024L)
+#define SIZE_60MB (60L * 1024L * 1024L)
+#define SIZE_120MB (120L * 1024L * 1024L)
+
 int main(int argc, char *argv[]) {
 
     if (argc < 2 || argc > 3) {
         fprintf(stderr, "Usage: %s <disk image file> [<label>]\n", argv[0]);
         return 1;
     }
+    
+    const char *image_name = argv[1];
 
     /*
     ** Open the disk image file for reading and writing in binary mode
@@ -39,35 +48,13 @@ int main(int argc, char *argv[]) {
     **           You can use fseek to move the file position indicator for reading.
     **           Note that writes will always append to the end of the file.
     */
-    FILE *fp = fopen(argv[1], "rb+");
+    FILE *fp = fopen(image_name, "rb+");
+  
     if (!fp) {
         perror("fopen");
         return 2;
     }
-
-#ifdef DEBUG
-    fprintf(stderr,"Opened disk image: %s\n", argv[1]);
-#endif
-
-    // Initialize superblock structure
-    superblock_t sb;
-    // Set all fields to zero initially
-    memset(&sb, 0, sizeof(superblock_t));
-    // Set QFS magic number
-    sb.fs_type = 0x51; // QFS type
-
-    // Set label if provided
-    if (argc == 3) {
-        strncpy((char *)sb.label, argv[2], sizeof(sb.label) - 1); // Make sure filename fits
-        sb.label[sizeof(sb.label) - 1] = '\0'; // Ensure NULL-termination to be safe
-
-#ifdef DEBUG
-    if (argc == 3)
-        fprintf(stderr,"Label: %s\n", argv[2]);
-#endif
-
-    }
-
+    
     /*
     ** Determine file size of disk image
     **
@@ -89,19 +76,50 @@ int main(int argc, char *argv[]) {
     fseek(fp, 0, SEEK_SET);
 
 #ifdef DEBUG
-    fprintf(stderr, "File size: %ld bytes\n", file_size);
+    fprintf(stderr,"Opened disk image: %s\n", image_name);
+    fprintf(stderr, "File Size: %ld bytes\n", file_size);
 #endif
 
-    // Calculate block size and counts (TODO: adjust these calculations as needed)
-    int total_data_available = (file_size - sizeof(superblock_t) - (sizeof(direntry_t) * 255));
-    sb.bytes_per_block = 512;
+    // Initialize superblock structure
+    superblock_t sb;
+    // Set all fields to zero initially
+    memset(&sb, 0, sizeof(superblock_t));
+    // Set QFS magic number
+    sb.fs_type = 0x51; // QFS type
+
+    // Set label if provided
+    if (argc == 3) {
+        strncpy((char *)sb.label, argv[2], sizeof(sb.label) - 1); // Make sure filename fits
+        sb.label[sizeof(sb.label) - 1] = '\0'; // Ensure NULL-termination to be safe
 
 #ifdef DEBUG
-    fprintf(stderr, "Total data available: %d\n", total_data_available);
+    if (argc == 3)
+        fprintf(stderr,"Label: %s\n", argv[2]);
+#endif
+
+    }
+
+    /* Calculate block size and counts how many bytes are left for data blocks after metadata.
+     * Metadata = superblock plus all directory entries 
+     */ 
+    long total_data_available = (file_size - sizeof(superblock_t) - (sizeof(direntry_t) * MAX_DIR_ENTRIES));
+    
+    
+    // Choose the block size based on the disk image size.
+    if (file_size <= SIZE_30MB) {
+		sb.bytes_per_block = 512;
+	} else if (file_size <= SIZE_60MB) {
+		sb.bytes_per_block = 1024;
+	} else {
+		sb.bytes_per_block = 2048;
+	}
+
+#ifdef DEBUG
+    fprintf(stderr, "Total data available: %ld\n", total_data_available);
     fprintf(stderr, "Block size: %d\n", sb.bytes_per_block);
 #endif
 
-    sb.total_blocks = total_data_available / sb.bytes_per_block;
+    sb.total_blocks = (uint16_t)(total_data_available / sb.bytes_per_block);
 
 #ifdef DEBUG
     fprintf(stderr, "Total blocks: %d\n", sb.total_blocks);
@@ -113,7 +131,7 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "Available blocks: %d\n", sb.available_blocks);
 #endif
 
-    sb.total_direntries = (uint8_t) 255;
+    sb.total_direntries = (uint8_t) MAX_DIR_ENTRIES;
     sb.available_direntries = sb.total_direntries;
 
 #ifdef DEBUG
@@ -122,7 +140,7 @@ int main(int argc, char *argv[]) {
 #endif
 
     // Create empty block (size of zeroed directory entries)
-    uint8_t dir_zeros[sizeof(direntry_t) * 255] = {0};
+    uint8_t dir_zeros[sizeof(direntry_t) * MAX_DIR_ENTRIES] = {0};
 
 #ifdef DEBUG
     fprintf(stderr, "Size of superblock: %lu bytes\n", sizeof(superblock_t));
