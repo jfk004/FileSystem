@@ -4,6 +4,15 @@
 #include <stdlib.h>
 #include "qfs.h"
 
+/* 
+    Author: Zakaria Merzougui
+    Date: December 12th 2025
+
+    This program takes a QFS disk image, a filename inside that image, and an output filename. 
+    It searches the current directory for a file with the filename and if it finds it, extracts 
+    the file and saves it in the current directory with the specified output filename.
+*/
+
 int main(int argc, char *argv[]) {
     if (argc != 4) {
         fprintf(stderr, "Usage: %s <disk image file> <file to read> <output file>\n", argv[0]);
